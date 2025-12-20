@@ -33,7 +33,7 @@ class PlayScene extends GameScene {
     this.handleObstacleCollision();
   }
 
-  update(time: number, delta: number): void {
+  update(_time: number, delta: number): void {
     if (!this.isGameRunning) {
       return;
     }

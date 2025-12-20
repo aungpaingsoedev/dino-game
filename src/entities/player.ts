@@ -32,7 +32,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     );
   }
 
-  update(time: number, delta: number) {
+  update(_time: number, _delta: number) {
     let isSpaceJustDown = this.spaceKey
       ? Phaser.Input.Keyboard.JustDown(this.spaceKey)
       : false;
