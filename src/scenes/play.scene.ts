@@ -12,21 +12,33 @@ class PlayScene extends GameScene {
   gameOverText!: Phaser.GameObjects.Image;
   restartText!: Phaser.GameObjects.Image;
   gameOverContainer!: Phaser.GameObjects.Container;
+  startText!: Phaser.GameObjects.Text;
+  scoreText!: Phaser.GameObjects.Text;
+  highScoreText!: Phaser.GameObjects.Text;
 
   spawnInterval: number = 1500;
   spawnTime: number = 0;
   gameSpeed: number = 10;
+  score: number = 0;
+  scoreTimer: number = 0;
+  highScore: number = 0;
+
+  private static readonly STORAGE_HIGH_SCORE = "dino_high_score";
 
   constructor() {
     super("PlayScene");
   }
 
   create() {
+    this.highScore = this.loadHighScore();
     this.createEnvironment();
     this.createPlayer();
     this.createObstacles();
     this.createGameOverContainer();
     this.createAnimations();
+    this.createStartText();
+    this.createScoreText();
+    this.createHighScoreText();
 
     this.handleGameStart();
     this.handleGameRestart();
@@ -39,9 +51,19 @@ class PlayScene extends GameScene {
     }
 
     this.spawnTime += delta;
+    this.scoreTimer += delta;
+    if (this.scoreTimer >= 100) {
+      this.score += 1;
+      this.scoreTimer = 0;
+      this.scoreText.setText(String(this.score));
+      if (this.score > this.highScore) {
+        this.highScore = this.score;
+        this.saveHighScore(this.highScore);
+        this.highScoreText.setText(String(this.highScore));
+      }
+    }
 
     if (this.spawnTime > this.spawnInterval) {
-      console.log("spawn obsacle");
       this.spawnTime = 0;
       this.spawnObstacle();
     }
@@ -66,7 +88,8 @@ class PlayScene extends GameScene {
   createEnvironment() {
     this.ground = this.add
       .tileSprite(0, +this.game.config.height, 88, 26, "ground")
-      .setOrigin(0, 1);
+      .setOrigin(0, 1)
+      .setDepth(2);
   }
 
   createObstacles() {
@@ -77,13 +100,80 @@ class PlayScene extends GameScene {
     this.gameOverText = this.add.image(0, 0, "game-over");
     this.restartText = this.add.image(0, 80, "restart");
 
-    // Make restart text interactive before adding to container
     this.restartText.setInteractive({ useHandCursor: true });
+    this.restartText.on("pointerover", () => this.restartText.setScale(1.05));
+    this.restartText.on("pointerout", () => this.restartText.setScale(1));
 
     this.gameOverContainer = this.add
       .container(this.gameWidth / 2, this.gameHeight / 2 - 50)
       .add([this.gameOverText, this.restartText])
-      .setAlpha(0);
+      .setAlpha(0)
+      .setDepth(20);
+  }
+
+  createStartText() {
+    this.startText = this.add
+      .text(this.gameWidth / 2, this.gameHeight / 2 - 20, "Press SPACE to start", {
+        fontSize: "18px",
+        color: "#535353",
+        fontFamily: "Arial, sans-serif",
+      })
+      .setOrigin(0.5)
+      .setDepth(15);
+    this.tweens.add({
+      targets: this.startText,
+      alpha: { from: 0.6, to: 1 },
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+  }
+
+  createScoreText() {
+    this.scoreText = this.add
+      .text(this.gameWidth - 24, 24, "0", {
+        fontSize: "22px",
+        color: "#535353",
+        fontFamily: "Arial, sans-serif",
+      })
+      .setOrigin(1, 0)
+      .setAlpha(0)
+      .setDepth(15);
+  }
+
+  createHighScoreText() {
+    this.add
+      .text(this.gameWidth - 90, 52, "HI", {
+        fontSize: "14px",
+        color: "#535353",
+        fontFamily: "Arial, sans-serif",
+      })
+      .setOrigin(0, 0)
+      .setDepth(15);
+    this.highScoreText = this.add
+      .text(this.gameWidth - 24, 52, String(this.highScore), {
+        fontSize: "14px",
+        color: "#535353",
+        fontFamily: "Arial, sans-serif",
+      })
+      .setOrigin(1, 0)
+      .setDepth(15);
+  }
+
+  loadHighScore(): number {
+    try {
+      const s = localStorage.getItem(PlayScene.STORAGE_HIGH_SCORE);
+      return s ? Math.max(0, parseInt(s, 10)) : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  saveHighScore(value: number): void {
+    try {
+      localStorage.setItem(PlayScene.STORAGE_HIGH_SCORE, String(value));
+    } catch {}
   }
 
   createAnimations() {
@@ -124,7 +214,7 @@ class PlayScene extends GameScene {
       );
     }
 
-    obstacle.setImmovable(true).setOrigin(0, 1);
+    obstacle.setImmovable(true).setOrigin(0, 1).setDepth(3);
   }
 
   handleGameStart() {
@@ -136,7 +226,6 @@ class PlayScene extends GameScene {
     this.physics.add.overlap(this.startTrigger, this.player, () => {
       if (this.startTrigger.y === 10) {
         this.startTrigger.body.reset(0, +this.game.config.height);
-        console.log("RESET");
         return;
       }
 
@@ -155,6 +244,8 @@ class PlayScene extends GameScene {
             this.player.setVelocityX(0);
             this.ground.width = +this.gameWidth;
             this.isGameRunning = true;
+            this.startText.setVisible(false);
+            this.scoreText.setAlpha(1);
           }
         },
       });
@@ -163,27 +254,40 @@ class PlayScene extends GameScene {
 
   handleGameRestart() {
     this.restartText.on("pointerdown", () => {
-      this.physics.resume();
-      this.gameOverContainer.setAlpha(0);
-      this.player.setVelocityY(0);
-      this.obstacles.clear(true, true);
-      this.anims.resumeAll();
-      // Reset spawn time to allow immediate spawning
-      this.spawnTime = 0;
-      this.isGameRunning = true;
+      this.tweens.add({
+        targets: this.gameOverContainer,
+        alpha: 0,
+        duration: 200,
+        onComplete: () => {
+          this.physics.resume();
+          this.player.setVelocityY(0);
+          this.obstacles.clear(true, true);
+          this.anims.resumeAll();
+          this.spawnTime = 0;
+          this.score = 0;
+          this.scoreTimer = 0;
+          this.scoreText.setText("0");
+          this.isGameRunning = true;
+        },
+      });
     });
   }
 
   handleObstacleCollision() {
     this.physics.add.collider(this.obstacles, this.player, () => {
       if (!this.isGameRunning) return;
-      
+
       this.physics.pause();
       this.player.die();
       this.isGameRunning = false;
-      // Pause all animations including bird animations
       this.anims.pauseAll();
-      this.gameOverContainer.setAlpha(1);
+      this.gameOverContainer.setAlpha(0);
+      this.tweens.add({
+        targets: this.gameOverContainer,
+        alpha: 1,
+        duration: 300,
+        ease: "Quad.easeOut",
+      });
     });
   }
 }

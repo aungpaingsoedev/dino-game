@@ -11,10 +11,16 @@ const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   width: 1000,
   height: 340,
+  parent: "app",
+  backgroundColor: "#f7f7f7",
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  render: { pixelArt: false, antialias: true },
   physics: {
     default: "arcade",
     arcade: {
-      // gravity: { y: 200, x: 0 },
       debug: false,
     },
   },
